@@ -2,7 +2,7 @@
 
 Machine-learning methods built **from first principles** -- algorithms alongside with the hand-written mathematical derivations of the concepts.
 
-These are based on my graduate machine-learning coursework (ELEC-578, Rice University). I've reorganized the work by topic, keeping the original scripts I created during my ML training. I also included my class notes and theories related to each topic.
+These are based on my graduate machine-learning coursework (Rice University). I've reorganized the work by topic, keeping the original scripts I created during my ML training. I also included my class notes and theories related to each topic.
 
 ### Structure
 The pattern throughout is **math → code → result**.
