@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# OS
+.DS_Store
+
+# Datasets (not distributed — belong to their sources)
+*.idx3-ubyte
+*.idx1-ubyte
+fashion-mnist_*.csv
+authors.csv
+adult*.csv
+
+# Raw high-res note scans (~138 MB) — kept locally, not committed.
+# The repo ships web-sized page images in notes/pages/ + a compressed PDF instead.
+notes/_raw_scans/
+
+# R / knit / LaTeX build artifacts (regenerated; not committed)
+*.html
+*.log
+*.tex
+*.aux
+*.knit.md
+*.utf8.md
+*.synctex.gz
+
+# staging folder of executed originals (copied into topic folders)
+excecuted_code/

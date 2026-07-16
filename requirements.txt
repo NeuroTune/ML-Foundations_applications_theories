@@ -1,0 +1,18 @@
+# Python dependencies for topics 03-05
+# (topics 01-02 are R; see the top-level README for R packages)
+
+numpy
+pandas
+matplotlib
+seaborn
+scipy
+scikit-learn
+tabulate
+idx2numpy          # topic 03: reading MNIST .idx*-ubyte files
+ipython
+
+# Topic 05 (neural nets) uses TensorFlow/Keras. The notebook targets the Keras 2 API
+# (tf.keras.optimizers.legacy.*), removed in Keras 3. To run it, pick ONE:
+#   - Python <= 3.11:  tensorflow==2.15
+#   - Python 3.13:     tensorflow==2.19  +  tf-keras   (and set TF_USE_LEGACY_KERAS=1)
+# tensorflow==2.15

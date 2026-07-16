@@ -1,0 +1,1009 @@
+---
+title: "Regularization & Feature Selection"
+author: "Tuba Aksoy"
+output: pdf_document
+date: "2023-09-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### 1. Data Analysis. For this problem, you may use one of two data sets: 
+(i) the Boston House Prices dataset available in scikit-learn (load boston) or (ii) the Baseball dataset available from the ISLR
+R package (install(ISLR) & data(Hitters)). The response for these datasets is MEDV, the median
+value of home prices, or Salary respectively. Note that if the response is highly skewed, then you may
+want to take the logarithm of the response. Additionally, if there are any missing values, you may want
+to remove these rows for this problem. Please document how you processed this data for analysis.
+
+### (a) What are the most important features?
+
+### (i) Compare and contrast the top features as determined by:
+
+1- Statistical significance in Linear Regression.
+2- Best Subsets.
+3- Step-wise approaches (and/or Recursive Feature Elimination).
+4- Lasso.
+5- Elastic Net.
+
+### (ii) Fit and visualize regularization paths for the following methods:
+
+1- Lasso
+2- Elastic Net (at two separate alpha's).
+3- Ridge.
+
+### (iii) Reflect on these results.
+
+Are the top features different for each method? Why or why not? If there are tuning parameters, how did you determine these? Do different tuning
+parameters yield different important features? Are there any features consistently selected
+by all methods? What are the most important features and how did you determine this?
+Explain and expand on your responses.
+
+
+
+### (b) Which linear method is best for prediction? 
+
+For this part of the problem, you will need to randomly split the data into 60% training, 20% validation and 20% test sets. If methods have any
+tuning parameters, you should fit models on the training data, choose the tuning parameters by
+minimizing the prediction error on the validation set, and then report the final prediction error
+on the test set. Repeat this procedure 10 times and average the results.
+
+### (i) Compare the average prediction MSE on the test set for the following methods:
+
+1-Least Squares.
+2- Ridge Regression.
+3- Best Subsets.
+4- Step-wise approaches (and/or Recursive Feature Elimination).
+5- Lasso.
+6- Elastic Net.
+
+### (ii) Visualize the results of your comparisons. 
+
+You can choose to only show the results with the best tuning parameter values.
+
+### (iii) Reflection. 
+
+Which types of methods give the best prediction error? Why do these methods
+perform well? Do any methods seem to overfit to the training set? If so, why? Do all the
+methods that give similar predictions choose the same subset of variables? Which is the
+overall best method for prediction on this dataset? Explain and expand on your responses.
+
+### 2. Empirical Demonstrations of Regression Properties. 
+
+For these problems, you can use the data mentioned above or you may need to design your own linear regression simulation.
+
+### (a) Empirically demonstrate that fitting linear regression with an intercept term is equivalent to (i)fitting linear regression when centering Y and centering the columns of X, and (ii) fitting linear regression when adding a column of ones to X.
+
+
+### (b) Empirically demonstrate that the least squares solution has zero training error when p > n.
+
+### (c) Empirically demonstrate the MSE Existence Theorem. 
+
+Recall that the MSE Existence Theorem states that there exists a value of lamda for which MSE(Xbetahat^Ridge(lamda) < MSE(XBetahat^LS).
+
+
+\newpage
+
+```{r part0}
+
+library(ISLR2)
+library(glmnet)
+library(leaps)
+library(MASS)
+library(stats)
+library(tidyverse)
+library(caret)
+library(leaps)
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(caret)
+data("Hitters")  
+### CLEAN / LOG TRANSFORM /ORGANIZE
+cleaned_hitters <- na.omit(Hitters)
+cleaned_hitters$Log_Salary <- log(cleaned_hitters$Salary) 
+numerical_data_1 <- cleaned_hitters[, c("AtBat", "Hits", "HmRun", "Runs", "RBI", "Walks", "Years", "CAtBat")]
+numerical_data_2 <- cleaned_hitters[, c("CHits", "CHmRun", "CRuns", "CRBI", "CWalks", "PutOuts", "Assists", "Errors")]
+categorical_data <- cleaned_hitters[, c("League", "Division", "NewLeague")]
+dumm_data <- dummyVars(~., data = categorical_data)
+encoded_data <- data.frame(predict(dumm_data, newdata = categorical_data))
+Log_Salary<- cleaned_hitters[, "Log_Salary"]
+Salary<- cleaned_hitters[, "Salary"]
+organized_data <- cbind(Log_Salary, numerical_data_1, numerical_data_2, encoded_data)
+organized_data1 <- cbind(Salary, numerical_data_1, numerical_data_2, encoded_data)
+N <- nrow(organized_data)
+### PAIRS
+numerical_p_1 <- cleaned_hitters[, c("AtBat", "Hits", "HmRun", "Runs", "RBI", "Walks", "Years", "CAtBat", "Salary")]
+numerical_p_2 <- cleaned_hitters[, c("CHits", "CHmRun", "CRuns", "CRBI", "CWalks", "PutOuts", "Assists", "Errors", "Salary")]
+categorical_p <- cleaned_hitters[, c("League", "Division", "NewLeague", "Salary")]
+###SPLIT AND SCALE THE DATA###
+N <- nrow(organized_data)
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+DATA_SCALED<- rbind(data_train_scaled,data_valid_scaled,data_test_scaled)
+y_centered = as.numeric(DATA_SCALED[, 1])
+X_standardized = as.matrix(DATA_SCALED[, -1])
+```
+
+
+
+\newpage
+```{r part1, fig.width=4, fig.height=3}
+
+hist(cleaned_hitters$Salary, main="Salary Histogram", xlab="Salary") # Histogram of the original Salary variable
+hist(cleaned_hitters$Log_Salary, main="Log_Salary Histogram", xlab="Log(Salary)") # Histogram of the Log_Salary variable
+
+```
+\newpage
+
+
+
+```{r part2}
+# Create scatterplot matrices for both groups
+pairs(numerical_p_1)
+pairs(numerical_p_2)
+pairs(categorical_p)
+
+```
+\newpage
+
+
+
+```{r part3}
+### LEAST SQUARES- LINEAR REGRESSION::
+fitc = lm(y_centered~X_standardized)
+#most important features
+significance_level <- 0.05
+summary_lm <- summary(fitc)
+stripped_variable_names <- sub("^X_standardized", "", rownames(summary_lm$coefficients[summary_lm$coefficients[, 4] < significance_level, , drop = FALSE]))
+
+```
+
+
+```{r part4}
+### BEST SUBSETS
+fitbsub = regsubsets(x = X_standardized, y = y_centered)
+res.sum<-summary(fitbsub)
+# WHICH FEATURES
+ADJ = which.max(res.sum$adjr2)
+CP = which.min(res.sum$cp)
+BIC = which.min(res.sum$bic)
+get_features <- function(id, object, outcome){
+  models <- summary(object)$which[id,-1]
+    predictors <- names(which(models == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+}
+
+```
+
+```{r part5}
+### FORWARD STEPWISE
+# (via CP)
+fit0 = lm(Log_Salary ~ 1, data = DATA_SCALED)
+formula <- as.formula(paste("Log_Salary ~", paste(setdiff(colnames(data_train_scaled), "Log_Salary"), collapse = " + ")))
+fitf = stepAIC(fit0, scope = formula, direction = "forward", data = DATA_SCALED, k = log(nrow(DATA_SCALED)))
+
+### BACKWARD STEPWISE
+# (via AIC)
+fit0 = lm(Log_Salary ~ ., data = DATA_SCALED)
+fitb = stepAIC(fit0, direction = "backward", data = DATA_SCALED, k = log(nrow(DATA_SCALED)))
+
+
+Forward_features <- names(coef(fitf))[!coef(fitf) == 0][-1]
+Backward_features <- names(coef(fitb))[!coef(fitb) == 0][-1]
+
+
+```
+\newpage
+```{r part6}
+
+### LASSO
+fit0 = lm(y_centered ~ X_standardized - 1)
+
+
+lam = 0.2 # alpha = 1 stands for Lasso regression
+fitl_02 = glmnet(x = X_standardized, y = y_centered, family = "gaussian",
+              lambda = lam, alpha = 1, intercept = FALSE)
+
+
+coefs02 = cbind(fit0$coef, fitl_02$beta)
+colnames(coefs02) = c("Without L1", "With L1")
+LASSO_features2 <- rownames(as.matrix(round(coefs02, 10)))[as.matrix(round(coefs02, 10))[, 2] != 0]
+
+
+
+
+lam = 0.3 # alpha = 1 stands for Lasso regression
+fitl_03 = glmnet(x = X_standardized, y = y_centered, family = "gaussian",
+                           lambda = lam, alpha = 1, intercept = FALSE)
+
+
+coefs03 = cbind(fit0$coef, fitl_03$beta)
+colnames(coefs03) = c("Without L1", "With L1")
+LASSO_features <- rownames(as.matrix(round(coefs03, 10)))[as.matrix(round(coefs03, 10))[, 2] != 0]
+
+```
+\newpage
+```{r part7}
+###Elastic Net
+fit0 = lm(y_centered ~ X_standardized - 1)
+
+lam1 = 0.1
+fitl1 = glmnet(x = X_standardized, y = y_centered, family = "gaussian",
+               lambda = lam1, alpha = 0.5, intercept = FALSE)
+
+
+lam2 = 0.9
+fitl2 = glmnet(x =X_standardized , y = y_centered, family = "gaussian",
+               lambda = lam2, alpha = 0.5, intercept = FALSE)
+
+
+# Extract important features
+coefs_EL = cbind(fit0$coef, fitl1$beta, fitl2$beta)
+colnames(coefs_EL) = c("lambda = 0", "lambda = 0.1", "lambda = 0.9")
+coefficients_matrix3 <- as.matrix(round(coefs_EL, 10))
+important_features3 <- rownames(coefficients_matrix3)[coefficients_matrix3[, 2] != 0]
+important_features4 <- rownames(coefficients_matrix3)[coefficients_matrix3[, 3] != 0]
+
+coefs_EL
+
+```
+
+\newpage
+
+
+
+
+### (ii) Fit and visualize regularization paths for the following methods:
+
+### 1- Lasso
+
+```{r part8}
+# Lasso paths
+
+# Lasso paths
+fitl = glmnet(x = X_standardized, y = y_centered, family = "gaussian", alpha = 1)
+plot(fitl)
+legend("topleft", legend = colnames(X_standardized), col = 1:23, lty = rep(1, 8), cex = 0.8)
+title("LASSO PATHS")
+
+```
+\newpage
+
+### 2- Elastic Net (at two separate alpha's).
+
+```{r part9}
+alphas = c(0.3, 0.7)
+
+# Loop through each alpha value, fit the model, and plot the paths
+par(mfrow = c(1, 1))
+for (alpha in alphas){
+    glm_fit = glmnet(x = X_standardized, y = y_centered, alpha = alpha)
+    plot(glm_fit, xvar = "lambda", main = paste("ELASTIC NET", "alpha =", alpha))
+    legend("topright", legend = colnames(X_standardized), col = 1:23, lty = 1, cex = .8)
+}
+
+
+```
+\newpage
+
+### 3- Ridge.
+
+```{r part10}
+fit_glm = glmnet(X_standardized, y_centered,alpha=0,standardize=FALSE,intercept=FALSE)
+plot(fit_glm,xvar="lambda")
+legend("topright",legend=names(organized_data)[2:17],col=1:23,lty=rep(1,17))
+
+```
+\newpage
+
+
+
+### (a) What are the most important features?
+
+### (i) Compare and contrast the top features as determined by:
+
+### 1- Statistical significance in Linear Regression.
+
+### 2- Best Subsets.
+
+### 3- Step-wise approaches (and/or Recursive Feature Elimination).
+
+### 4- Lasso.
+
+### 5- Elastic Net.
+
+
+### (iii) Reflect on these results.
+
+Are the top features different for each method? Why or why not? If there are tuning parameters, 
+how did you determine these? Do different tuning
+parameters yield different important features? Are there any features consistently selected
+by all methods? What are the most important features and how did you determine this?
+Explain and expand on your responses.
+
+```{r part77}
+
+
+## ANSWER:
+
+
+cat("Here are the MOST IMPORTANT FEATURES for different Methods/ parameters:", "\n",
+"Statistical significance in LINEAR REGRESSION:", stripped_variable_names, "\n",
+"BEST SUBSET with Adj.R2:", get_features(ADJ, fitbsub, "Log_Salary"), "\n",
+"BEST SUBSET with CP:", get_features(CP, fitbsub, "Log_Salary"), "\n",
+"BEST SUBSET with BIC:", get_features(BIC, fitbsub, "Log_Salary"), "\n",
+"FORWARD:", paste(Forward_features, collapse = " + "), "\n",
+"BACKWARD:", paste(Backward_features, collapse = " + "), "\n",
+"LASSO (LAMDA=0.2):" ,LASSO_features2,  "\n",
+"LASSO (LAMDA=0.3):" ,LASSO_features,  "\n",
+"ELASTIC NET (LAMDA=0.1, alpha=0.5):" ,important_features3,  "\n",
+"ELASTIC NET (LAMDA=0.9, alpha=0.5):" ,important_features4,  "\n",
+"The top features are different for each method and for different tuning parameters.","\n",
+"That is because methods use different mechanisms and criteria for feature selection ","\n",
+"and regularization.","\n",
+"Selection of the model, number of features, and tuning parameters depend on the goal of the study", "\n",
+"and requires some background knowledge.","\n",
+"For this homework, I picked the parameters to compare for different distances of parameters.", "\n", 
+"For example in elastic net, I put alpha=0.5, bacecause I wanted to be neither close ", "\n", 
+"to Ridge nor Lasso, and compared two LAMDA values to see how much the increase affect the changes" ,"\n",
+"Hit, Walks, and Years are 3 features that are most frequenltly selected.", "\n",
+"To determine the real best features I would get more idea of the context of the data/ background ", "\n",
+"and determine either a limit to the number of features, or focus on models that enhances the", "\n",
+"essential features. Choosing the model also depend on the success of the method will in ", "\n",
+"predicting the target variable. ", "\n")
+
+
+```
+
+\newpage
+
+### (b) Which linear method is best for prediction? 
+
+For this part of the problem, you will need to randomly split the data into 60% training, 
+20% validation and 20% test sets. If methods have any tuning parameters, you should fit models on the 
+training data, choose the tuning parameters by minimizing the prediction error on the validation set, 
+and then report the final prediction error on the test set. Repeat this procedure 10 times and average the results.
+
+### (i) Compare the average prediction MSE on the test set for the following methods:
+### 1-Least Squares.
+### 2- Ridge Regression.
+### 3- Best Subsets.
+### 4- Step-wise approaches (and/or Recursive Feature Elimination).
+### 5- Lasso.
+### 6- Elastic Net.
+
+```{r part12}
+### 1-Least Squares.
+# Initialize variables to store the average MSE across iterations
+LS_test_MSE_mean <- 0
+num_iterations <- 10
+
+
+for (ii in 1:num_iterations) {
+#Split 
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+
+
+#TRAIN#
+LS_model <- lm(y_train_centered ~ ., data = data_train_scaled)
+
+#VALID#
+LS_valid_predictions <- predict(LS_model, newdata = data_valid_scaled)
+LS_valid_mse <- mean((LS_valid_predictions - y_valid_centered)^2)
+  
+#TEST#
+LS_test_predictions <- predict(LS_model, newdata = data_test_scaled)
+LS_test_mse <- mean((LS_test_predictions - y_test_centered)^2)
+LS_test_MSE_mean <- LS_test_MSE_mean + LS_test_mse
+}
+
+# Calculate the average test MSE across all iterations for Least Squares
+MEAN_MSE_LS <- LS_test_MSE_mean / num_iterations
+
+```
+
+```{r part13}
+### 2- Ridge Regression.
+num_iterations <- 10
+RIDGE_BEST_alpha_values <- numeric(num_iterations)
+RIDGE_BEST_mse_values <- numeric(num_iterations)
+RIDGE_test_MSE_mean <- 0
+
+for (ii in 1:num_iterations) {
+
+#Split 
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- (scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- (scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- (scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+
+#TRAIN#
+alpha_values <- seq(0.1, 1, by = 0.1)
+RIDGE_model_list <- list()  # To store models for different alpha values
+
+for (alpha in alpha_values) {
+  RIDGE_model <- glmnet(x = X_train_scaled, y = y_train_centered, alpha = alpha)
+  RIDGE_model_list[[as.character(alpha)]] <- RIDGE_model
+}
+
+#VALID#
+RIDGE_mse_values <- numeric(length(alpha_values))
+
+for (i in seq_along(alpha_values)) {
+  RIDGE_valid_predictions <- predict(RIDGE_model_list[[as.character(alpha_values[i])]], newx = X_valid_scaled    )
+  RIDGE_mse_values[i] <- mean((RIDGE_valid_predictions - y_valid_centered)^2)
+
+}
+
+RIDGE_best_alpha <- alpha_values[which.min(RIDGE_mse_values)]
+Ridge_best_model <- RIDGE_model_list[[as.character(RIDGE_best_alpha)]]
+RIDGE_best_mse<- min(RIDGE_mse_values)
+
+# Store the results
+RIDGE_BEST_alpha_values[ii] <- RIDGE_best_alpha
+RIDGE_BEST_mse_values[ii] <- RIDGE_best_mse
+
+#TEST#
+RIDGE_test_predictions <- predict(Ridge_best_model, newx = X_test_scaled)
+RIDGE_test_mse <- mean((RIDGE_test_predictions - y_test_centered)^2)
+# Add the test MSE for this iteration to the running total
+RIDGE_test_MSE_mean <- RIDGE_test_MSE_mean + RIDGE_test_mse
+}
+
+# Calculate the average test MSE across all iterations for Least Squares
+MEAN_MSE_RIDGE <- RIDGE_test_MSE_mean / num_iterations
+table_RIDGE <- data.frame(Iteration = 1:num_iterations, Best_Validation_Alpha = RIDGE_BEST_alpha_values, Best_Validation_MSE = RIDGE_BEST_mse_values)
+#print(table_RIDGE)
+
+```
+
+```{r part14}
+### 3- Best Subsets.
+model1_count <- 0
+model2_count <- 0
+model3_count <- 0
+mse_values <- numeric(10)  # Assuming you want to run the program 10 times
+BESTSUM_test_MSE_mean <- 0
+
+for (ii in 1:10) { 
+
+#Split 
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+
+
+#TRAIN#
+BESTSUB_model = regsubsets(x = X_train_scaled, y = y_train_centered)
+res.sum = summary(BESTSUB_model)
+ADJ = which.max(res.sum$adjr2)
+CP = which.min(res.sum$cp)
+BIC = which.min(res.sum$bic)
+
+get_model_formula <- function(id, object, outcome){
+  models <- summary(object)$which[id,-1]
+    predictors <- names(which(models == TRUE))
+  predictors <- paste(predictors, collapse = "+")
+  as.formula(paste0(outcome, "~", predictors))
+}
+
+formula_Adj<- get_model_formula(ADJ, BESTSUB_model, "Log_Salary")
+formula_CP<- get_model_formula(CP, BESTSUB_model, "Log_Salary")
+formula_BIC<- get_model_formula(BIC, BESTSUB_model, "Log_Salary")
+
+#VALIDATION 
+model1 <- lm(formula_Adj, data = data_valid_scaled)
+model2<- lm(formula_CP, data=data_valid_scaled)
+model3<- lm(formula_BIC, data=data_valid_scaled)
+BESTSUB_valid_predictions_adj <- predict(model1, newx = X_valid_scaled)
+BESTSUB_valid_predictions_cp <- predict(model2, newx = X_valid_scaled)
+BESTSUB_valid_predictions_bic <- predict(model3 , newx = X_valid_scaled)
+mse_model1 <- mean((BESTSUB_valid_predictions_adj - y_valid_centered)^2)
+mse_model2 <- mean((BESTSUB_valid_predictions_cp - y_valid_centered)^2)
+mse_model3 <- mean((BESTSUB_valid_predictions_bic - y_valid_centered)^2)
+ 
+# Determine the best model based on the lowest MSE
+if (mse_model1 < mse_model2 && mse_model1 < mse_model3) {
+  best_model <- model1
+  best_model_name <- "Model 1"
+  model1_count <- model1_count + 1
+} else if (mse_model2 < mse_model1 && mse_model2 < mse_model3) {
+  best_model <- model2
+  best_model_name <- "Model 2"
+  model1_count <- model1_count + 1
+} else {
+  best_model <- model3
+  best_model_name <- "Model 3"
+  model1_count <- model1_count + 1
+}
+
+
+#TEST
+BESTSUB_test_predictions <- predict(best_model, newdata = data_test_scaled)
+BESTSUB_test_mse <- mean((BESTSUB_test_predictions - data_test_scaled$Log_Salary) ^ 2)
+BESTSUM_test_MSE_mean <- BESTSUM_test_MSE_mean + BESTSUB_test_mse
+}
+
+MEAN_MSE_BESTSUBSET <- BESTSUM_test_MSE_mean / num_iterations
+model_names <- c("Model ADJ", "Model CP", "Model BIC")
+selection_counts <- c(model1_count, model2_count, model3_count)
+table_BESTSUBSET <- data.frame(Model = model_names, Selection_Count = selection_counts)
+#print(table_BESTSUBSET)
+
+```
+
+
+```{r part15,results="hide"}
+### 4- Step-wise approaches (and/or Recursive Feature Elimination).
+##FORWARD
+FORWARD_test_MSE_mean<- 0
+aic_count_forward <- 0
+bic_count_forward <- 0
+
+
+for (ii in 1:num_iterations) {
+#Split 
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+
+#TRAINING
+#AIC
+fit0 = lm(Log_Salary ~ 1, data = data_train_scaled)
+column_names <- colnames(data_train_scaled)
+predictor_names <- setdiff(column_names, "Log_Salary")
+formula <- as.formula(paste("Log_Salary ~", paste(predictor_names, collapse = " + ")))
+fitf = stepAIC(fit0, scope =formula ,
+               direction = "forward", data = data_train_scaled, k = log(nrow(data_train_scaled)),  verbose = FALSE)
+selected_variables <- names(coef(fitf))[!coef(fitf) == 0]
+ForwardVariables <- selected_variables[-1]
+formula_1 <- as.formula(paste("Log_Salary ~", paste(ForwardVariables, collapse = " + ")))
+
+ #BIC 
+fitf_bic = stepAIC(fit0, scope =formula ,
+               direction = "forward", data = data_train_scaled, k = log(nrow(data_train_scaled)) * (log(nrow(data_train_scaled)) + 1) / 2)
+selected_variables <- names(coef(fitf_bic))[!coef(fitf_bic) == 0]
+ForwardVariables <- selected_variables[-1]
+formula_2 <- as.formula(paste("Log_Salary ~", paste(ForwardVariables, collapse = " + ")))
+
+#VALIDATION
+#AIC
+Forward_model_AIC <- lm(formula_1, data = data_valid_scaled)
+#BIC
+Forward_model_BIC <- lm(formula_2, data = data_valid_scaled)
+Forward_model_AIC_predictions <- predict(Forward_model_AIC, newdata = data_valid_scaled)
+Forward_model_AIC_predictions_mse <- mean((Forward_model_AIC_predictions - data_valid_scaled$Log_Salary) ^ 2)
+Forward_model_BIC_predictions <- predict(Forward_model_BIC, newdata = data_valid_scaled)
+Forward_model_BIC_predictions_mse <- mean((Forward_model_BIC_predictions - data_valid_scaled$Log_Salary) ^ 2)
+
+  # Store the best model in the results data frame
+  if (Forward_model_AIC_predictions_mse < Forward_model_BIC_predictions_mse) {
+    best_model<- "AIC"
+    FORWARD_MODEL <- lm(formula_1, data = data_test_scaled)
+   aic_count_forward <- aic_count_forward + 1
+
+  } else {
+    best_model <- "BIC"
+    FORWARD_MODEL <- lm(formula_2, data = data_test_scaled)
+    bic_count_forward <- bic_count_forward + 1
+  }
+
+
+#TEST
+forward_model_predictions <- predict(FORWARD_MODEL, newdata = data_test_scaled)
+forward_model_predictions_mse <- mean((forward_model_predictions - data_test_scaled$Log_Salary)^2)
+FORWARD_test_MSE_mean <- FORWARD_test_MSE_mean + forward_model_predictions_mse
+}
+
+MEAN_MSE_FORWARD <- FORWARD_test_MSE_mean / num_iterations
+table_FORWARD <- data.frame(Model = c("AIC", "BIC"), Count = c(aic_count_forward, bic_count_forward))
+#print(table_FORWARD)
+
+```
+
+
+
+
+```{r part15_b,results="hide"}
+### 4- Step-wise approaches (and/or Recursive Feature Elimination).
+##BACKWARD
+Backward_test_MSE_mean<- 0
+aic_count_backward <- 0
+bic_count_backward <- 0
+
+for (ii in 1:num_iterations) {
+#Split 
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+
+#TRAINING
+#AIC
+fit00 = lm(Log_Salary ~. , data = data_train_scaled)
+fitf = stepAIC(fit0, 
+               direction = "backward", data = data_train_scaled, k = log(nrow(data_train_scaled)))
+selected_variables <- names(coef(fitf))[!coef(fitf) == 0]
+#BIC 
+fit00 = lm(Log_Salary ~ ., data = data_train_scaled)
+fitf_bic = stepAIC(fit00, 
+               direction = "backward", criterion = "BIC", data = data_train_scaled, k = log(nrow(data_train_scaled)))
+
+selected_variables <- names(coef(fitf_bic))[!coef(fitf_bic) == 0]
+#VALIDATION
+#AIC
+Backward_model_AIC <- lm(formula_1, data = data_valid_scaled)
+Backward_model_BIC <- lm(formula_2, data = data_valid_scaled)
+Backward_model_AIC_predictions <- predict(Backward_model_AIC, newdata = data_valid_scaled)
+Backward_model_AIC_predictions_mse <- mean((Backward_model_AIC_predictions - data_valid_scaled$Log_Salary) ^ 2)
+Backward_model_BIC_predictions <- predict(Backward_model_BIC, newdata = data_valid_scaled)
+Backward_model_BIC_predictions_mse <- mean((Backward_model_BIC_predictions - data_valid_scaled$Log_Salary) ^ 2)
+  # Store the best model in the results data frame
+  if (Backward_model_AIC_predictions_mse < Backward_model_BIC_predictions_mse) {
+    best_model<- "AIC"
+    Backward_MODEL <- lm(formula_1, data = data_test_scaled)
+   aic_count_backward <- aic_count_backward + 1
+
+  } else {
+    best_model <- "BIC"
+    Backward_MODEL <- lm(formula_2, data = data_test_scaled)
+    bic_count_backward <- bic_count_backward + 1
+  }
+#Test
+Backward_model_predictions <- predict(Backward_MODEL, newdata = data_test_scaled)
+Backward_model_predictions_mse <- mean((Backward_model_predictions - data_test_scaled$Log_Salary)^2)
+Backward_test_MSE_mean <- Backward_test_MSE_mean + Backward_model_predictions_mse
+}
+# Calculate the average test MSE across all iterations for Least Squares
+MEAN_MSE_BACKWARD <- Backward_test_MSE_mean / num_iterations
+table_BACK <- data.frame(Model = c("AIC", "BIC"), Count = c(aic_count_backward, bic_count_backward))
+
+#print(table_BACK)
+```
+
+
+```{r part16}
+### 5- Lasso.
+LASSO_test_MSE_mean <- 0
+LASSO_BEST_alpha_values <- numeric(num_iterations)
+LASSO_BEST_mse_values <- numeric(num_iterations)
+
+for (i in 1:num_iterations) {
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+  
+#TRAIN
+LASSO_alpha_values <- seq(0.1, 1, by = 0.1) 
+LASSO_model_list <- list()  
+LASSO_mse_values <- 0 
+
+for (alpha in LASSO_alpha_values) {
+  LASSO_model <- cv.glmnet(as.matrix(data_train_scaled), y_train_centered, alpha = alpha)
+  LASSO_model_list[[as.character(alpha)]] <- LASSO_model
+}
+
+#VALIDATE
+for (ii in seq_along(LASSO_alpha_values)) {
+  LASSO_valid_predictions <- predict(LASSO_model_list[[as.character(LASSO_alpha_values[ii])]], newx = as.matrix(data_valid_scaled))
+  LASSO_mse_values[ii] <- mean((LASSO_valid_predictions - y_valid_centered)^2)
+}
+LASSO_best_alpha <- LASSO_alpha_values[which.min(LASSO_mse_values)]
+LASSO_best_mse<- min(LASSO_mse_values)
+LASSO_best_model <- LASSO_model_list[[as.character(LASSO_best_alpha)]]
+LASSO_BEST_alpha_values[i] <- LASSO_best_alpha
+LASSO_BEST_mse_values[i] <- LASSO_best_mse
+
+#TEST
+LASSO_test_predictions <- predict(LASSO_best_model, newx = as.matrix(data_test_scaled))
+LASSO_test_mse <- mean((LASSO_test_predictions - y_test_centered)^2)
+LASSO_test_MSE_mean <- LASSO_test_MSE_mean + LASSO_test_mse
+
+coefs03 = cbind(fit0$coef, fitl_03$beta)
+colnames(coefs03) = c("Without L1", "With L1")
+rownames(as.matrix(round(coefs03, 10)))[as.matrix(round(coefs03, 10))[, 2] != 0]
+}
+
+MEAN_MSE_LASSO <- LASSO_test_MSE_mean / num_iterations
+table_LASSO <- data.frame(Iteration = 1:num_iterations, Best_Alpha = LASSO_BEST_alpha_values, Best_MSE = LASSO_BEST_mse_values)
+#print(table_LASSO)
+
+```
+
+
+```{r part17}
+### 6- Elastic Net.
+results_ELASTIC <- data.frame(
+  Iteration = numeric(num_iterations),
+  Best_Alpha = numeric(num_iterations),
+  Best_Lambda = numeric(num_iterations),
+  Best_MSE = numeric(num_iterations),
+  Test_Error = numeric(num_iterations))
+
+for (i in 1:num_iterations) {
+train_indices <- sample(1:N, 0.6 * N)  # 60% for training
+remaining_indices <- setdiff(1:N, train_indices)
+valid_indices <- sample(remaining_indices, 0.5 * length(remaining_indices))  # 20% for validation
+test_indices <- setdiff(remaining_indices, valid_indices)  # 20% for test
+# Center and scale the data.  the target variable
+y_mean <- mean(as.numeric(organized_data[train_indices, ][, 1]))
+y_train_centered <- as.numeric(organized_data[train_indices, ][, 1]) - y_mean
+y_valid_centered <- as.numeric(organized_data[valid_indices, ][, 1]) - y_mean
+y_test_centered <- as.numeric(organized_data[test_indices, ][, 1]) - y_mean
+# Center and standardize
+X_train_scaled <- as.data.frame(scale(as.matrix(organized_data[train_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_valid_scaled <- as.data.frame(scale(as.matrix(organized_data[valid_indices, ][, -1]), center = TRUE, scale = TRUE))
+X_test_scaled <- as.data.frame(scale(as.matrix(organized_data[test_indices, ][, -1]), center = TRUE, scale = TRUE))
+data_train_scaled <- cbind(Log_Salary = y_train_centered, X_train_scaled)
+data_valid_scaled <- cbind(Log_Salary = y_valid_centered, X_valid_scaled)
+data_test_scaled <- cbind(Log_Salary = y_test_centered, X_test_scaled)
+  
+
+#TRAIN
+# Define a range of alpha values (from 0.1 to 1)
+alpha_values <- seq(0.1, 1, by = 0.1)
+  best_model <- NULL
+  best_alpha <- NULL
+  best_lambda <- NULL
+  best_validation_error <- Inf
+
+for (alpha in alpha_values) {
+  model <- glmnet(as.matrix(X_train_scaled), y_train_centered, alpha = alpha)
+  cv_model <- cv.glmnet(as.matrix(X_train_scaled), y_train_centered, alpha = alpha)
+  best_lambda <- cv_model$lambda.min
+  predictions_val <- predict(model, newx = as.matrix(X_valid_scaled), s = best_lambda)
+  validation_error <- mean((predictions_val - y_valid_centered)^2)
+  if (validation_error < best_validation_error) {
+    best_validation_error <- validation_error
+    best_model <- model  
+    best_model <- model 
+    best_alpha <- alpha  
+  }
+}
+
+#TEST
+best_lambda <- cv.glmnet(as.matrix(X_train_scaled), y_train_centered, alpha = alpha)$lambda.min
+predictions_test <- predict(best_model, newx = as.matrix(X_test_scaled), s = best_lambda)
+test_error <- mean((predictions_test - y_test_centered)^2)
+  results_ELASTIC[i, "Iteration"] <- i
+  results_ELASTIC[i, "Best_Alpha"] <- best_alpha
+  results_ELASTIC[i, "Best_Lambda"] <- best_lambda
+  results_ELASTIC[i, "Best_MSE"] <- best_validation_error
+  results_ELASTIC[i, "Test_Error"] <- test_error
+}
+MEAN_MSE_ELASTIC <- mean(results_ELASTIC$Test_Error)
+#print(results_ELASTIC)
+
+```
+
+### (ii) Visualize the results of your comparisons. 
+
+You can choose to only show the results with the best tuning parameter values.
+
+
+```{r part18}
+
+method_names <- c("Least Squares", "Ridge", "Best Subsets", "Forward","Backward", "Lasso", "Elastic Net")
+mse_values <- c(MEAN_MSE_LS, MEAN_MSE_RIDGE, MEAN_MSE_BESTSUBSET, 
+                MEAN_MSE_FORWARD, MEAN_MSE_BACKWARD, MEAN_MSE_LASSO, MEAN_MSE_ELASTIC)
+results_df <- data.frame(Method = method_names, Average_Test_MSE = mse_values)
+results_df$Method <- factor(results_df$Method, levels = method_names)
+results_df <- results_df[order(results_df$Method), ]
+ggplot(results_df, aes(x = Method, y = Average_Test_MSE)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Comparison of Average Test MSE for Linear Methods",
+       x = "Method", y = "Average Test MSE") +
+  theme_minimal()
+
+print(results_df)
+```
+
+### (iii) Reflection. 
+
+Which types of methods give the best prediction error? Why do these methods
+perform well? Do any methods seem to overfit to the training set? If so, why? Do all the
+methods that give similar predictions choose the same subset of variables? Which is the
+overall best method for prediction on this dataset? Explain and expand on your responses.
+
+```{r part19_0}
+
+## ANSWER:
+
+
+cat("Given the mean and minimun values of the scaled and log normalized data,","\n",
+"Least Squares method might be over fitting.","\n",
+"for selected parameters, the order of MSE values from largest to smallest are; Best Subset,","\n",
+"Ridge, Elastic net, Forward, Bacward, Elastic net and Lasso.  ","\n",
+"given the approximate mean, max, min","\n",
+"Lasso with about  looks the best fit for this results.", "\n",
+"But depending on the question or the goal of the question,", "\n", 
+"Forward and backward stepwise, and Elastic net can also be applicable." , "\n", 
+"Mean of scaled data=",mean(DATA_SCALED$Log_Salary),"\n",
+"Max of scaled data=",max(DATA_SCALED$Log_Salary),"\n",
+"Mix of scaled data=",min(DATA_SCALED$Log_Salary),"\n", 
+"Please see below tables to show details about the best hyperparameters or categories:")
+
+
+print(table_RIDGE)
+print(table_BESTSUBSET)
+print(table_FORWARD)
+print(table_BACK)
+print(table_LASSO)
+print(results_ELASTIC)
+
+```
+
+\newpage
+
+
+### 2. Empirical Demonstrations of Regression Properties. 
+
+For these problems, you can use the data mentioned above or you may need to design your own linear regression simulation.
+
+### (a) Empirically demonstrate that fitting linear regression with an intercept term is equivalent to (i)fitting linear regression when centering Y and centering the columns of X, and (ii) fitting linear regression when adding a column of ones to X.
+
+```{r part19}
+y = as.numeric(organized_data1[, 1])
+X = as.matrix(organized_data1[, -1])
+y_centered = y - mean(y)
+X_centered = scale(X, center = TRUE, scale = FALSE)
+X_standardized = scale(X, center = TRUE, scale = TRUE)
+
+model_centered <- lm(y_centered ~ X_centered , data = organized_data1)
+
+X_with_intercept <- cbind(1, organized_data1[,-1])
+model_with_ones <- lm(Salary ~ ., data = X_with_intercept)
+
+summary(model_centered)
+summary(model_with_ones)
+```
+
+
+
+
+### (b) Empirically demonstrate that the least squares solution has zero training error when p > n.
+
+```{r part20}
+set.seed(123)
+n <- 50 
+p <- 60  
+X <- matrix(rnorm(n * p), ncol = p)
+y <- rnorm(n)
+lm_model <- lm(y ~ X)
+train_error <- sum(lm_model$residuals^2)
+# Check if the training error is approximately zero
+if (train_error < 1e-10) {
+  cat("The least squares solution has zero training error, when we use the cut off as train_error < 1e-10.")
+} else {
+  cat("The least squares solution does not have zero training error.")
+}
+
+```
+
+### (c) Empirically demonstrate the MSE Existence Theorem. 
+
+```{r part21}
+set.seed(123)
+n <- dim(organized_data1)[1]
+train_index <- sample(1:n, 0.8 * n)
+train_data <- organized_data1[train_index, ]
+test_data <- organized_data1[-train_index, ]
+# linear regression model
+ols_model <- lm(Salary ~ ., data = train_data)
+ols_predictions <- predict(ols_model, newdata = test_data)
+mse_ols <- mean((test_data$Salary - ols_predictions)^2)
+# Ridge regression
+lambda_seq <- 10^seq(10, -2, length = 100)
+ridge_models <- glmnet(as.matrix(train_data[, -1]), train_data$Salary, alpha = 0, lambda = lambda_seq)
+mse_ridge <- sapply(lambda_seq, function(lambda) {
+  ridge_predictions <- predict(ridge_models, s = lambda, newx = as.matrix(test_data[, -1]))
+  mean((test_data$Salary - ridge_predictions)^2)
+})
+# Find the lambda with lower MSE than OLS
+lambda_min_mse <- lambda_seq[which.min(mse_ridge)]
+cat("MSE for Ridge=", min(mse_ridge), "\n")
+cat("MSE for OLS:", mse_ols, "\n")
+if (min(mse_ridge) < mse_ols) {
+  cat("The MSE Existence Theorem is empirically demonstrated that there exists a value of LAMDA for which MSE Ridge is less than MSE LS.")
+} else {
+  cat("The MSE Existence Theorem is not empirically demonstrated.")
+}
+
+```
+
+
+
+

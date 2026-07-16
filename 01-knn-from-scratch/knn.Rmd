@@ -1,0 +1,103 @@
+---
+title: "K-Nearest Neighbors from Scratch"
+author: "Tuba Aksoy"
+date: "2023-09-02"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+
+Write a function (from scratch!) to perform K-Nearest Neighbors classication (two-classes only) and
+K-Nearest Neighbors regression. Demonstrate your function by applying it to real or simulated data
+sets and comparing results to built-in functions in R or Python. How do results change as you use
+different values of K?
+
+```{r q1, echo=TRUE, fig.width = 6, fig.height = 3.2}
+library(kknn)
+library(class)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+
+#PARAMETERS
+k<- 5
+N<-500
+split_tr<- 0.8
+
+#Generate data with two classes:
+set.seed(123)
+class1 <- data.frame(x1 = rnorm(N, mean = 5, sd = 1), x2 = rnorm(N, mean = 5, sd = 1), class = 1,target = rnorm(N))
+class2 <- data.frame(x1 = rnorm(N, mean = 7, sd = 1),x2 = rnorm(N, mean = 7, sd = 1),class = 2,target = rnorm(N))
+data <- rbind(class1, class2)
+#Visualize data points
+ggplot(data, aes(x = x1, y = x2, color = factor(class))) +
+  geom_point() +
+  theme_minimal()
+
+# Split the data
+num_train <- round(split_tr * nrow(data))
+index <- sample(1:nrow(data), num_train)
+train_data <- data[index, ]
+test_data <- data[-index, ]
+# Visualize split data
+ggplot() +
+  geom_point(data = train_data, aes(x = x1, y = x2, color = "Training")) +
+  geom_point(data = test_data, aes(x = x1, y = x2, color = "Test")) +
+  labs(color = "Split Data") +
+  theme_minimal()
+
+#FROM SCRATCH
+# KNN Classification 
+knn_classification_scratch <- function(train_data, test_data, k) {
+  predictions <- vector("integer", length(test_data))
+  
+  for (i in 1:nrow(test_data)) {  
+    distances <- sqrt((train_data$x1 - test_data[i, "x1"])^2 + (train_data$x2 - test_data[i, "x2"])^2)
+    sorted_indices <- order(distances)
+    k_nearest_classes <- train_data[sorted_indices[1:k], "class"]
+    predictions[i] <- as.integer(as.factor(k_nearest_classes) %>% summary() %>% which.max())
+  }
+  
+  return(predictions)
+}
+predicted_classes_s <- knn_classification_scratch(train_data, test_data, k)
+cat("Predicted Classes:", predicted_classes_s, "\n")
+
+# KNN Regression (From Scratch)
+knn_regression_scratch <- function(train_data, test_data, k) {
+  predictions <- vector("numeric", length(test_data))
+  
+  for (i in 1:nrow(test_data)) {  
+    distances <- sqrt((train_data$x1 - test_data[i, "x1"])^2 + (train_data$x2 - test_data[i, "x2"])^2)
+    sorted_indices <- order(distances)
+    k_nearest_values <- train_data[sorted_indices[1:k], "target"]
+    predictions[i] <- mean(k_nearest_values)
+  }
+  
+  return(predictions)
+}
+predicted_s <- knn_regression_scratch(train_data, test_data, k)
+cat("Predicted Values:", predicted_s, "\n")
+
+#BUILT IN
+# KNN Classification 
+knn_model <- knn(train = train_data[, c("x1", "x2")], test = test_data[, c("x1", "x2")], cl = train_data$class, k = k)
+predicted_classes_b <- as.integer(knn_model)
+cat("Predicted Classes:", predicted_classes_b, "\n")
+
+# KNN Regression 
+knn_reg_model <- kknn(target ~ x1 + x2, train = train_data, test = test_data, k = k)
+predicted_b <- knn_reg_model$fitted.values
+cat("Predicted Values:", predicted_b, "\n")
+
+print('ANSWER: As k increase,code from scratch give more similar results with the built-in functions')
+```
+
+
