@@ -4,7 +4,6 @@ My hand-written notes for the course — the running record of working through t
 Where the topic folders show *applied* implementations, these are the *conceptual* backbone:
 derivations, geometry, and the intuition behind each method, color-coded as I worked.
 
-**Full notes (57 pages):** [ML-all-course-notes.pdf](ML-all-course-notes.pdf)
 
 > The high-resolution originals (~138 MB) are kept locally and not committed; this repo ships a
 > compressed PDF plus the featured pages below.
@@ -46,4 +45,3 @@ derivations, geometry, and the intuition behind each method, color-coded as I wo
 | **Ch 5–8** (pp. 22–44) | Optimization & solving the Lasso (subgradients, soft-thresholding, proximal/coordinate/gradient descent) · regularization paths · non-linear regression, basis expansion, kernels & RKHS · cross-validation · GLMs & logistic regression |
 | **Ch 10–12** (pp. 45–57) | Bayes classifiers, LDA & nearest-centroid · linear & kernel SVMs and the max-margin derivation · loss functions (hinge, logistic, exponential) · boosting & ensembles |
 
-*(Page numbers refer to the combined [ML-all-course-notes.pdf](ML-all-course-notes.pdf).)*
