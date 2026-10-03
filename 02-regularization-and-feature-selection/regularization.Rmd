@@ -9,78 +9,27 @@ date: "2023-09-03"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### 1. Data Analysis. For this problem, you may use one of two data sets: 
+### 1. Data Analysis. Two data sets are available: 
 (i) the Boston House Prices dataset available in scikit-learn (load boston) or (ii) the Baseball dataset available from the ISLR
 R package (install(ISLR) & data(Hitters)). The response for these datasets is MEDV, the median
-value of home prices, or Salary respectively. Note that if the response is highly skewed, then you may
-want to take the logarithm of the response. Additionally, if there are any missing values, you may want
-to remove these rows for this problem. Please document how you processed this data for analysis.
+value of home prices, or Salary respectively. If the response is highly skewed, take the logarithm of the response. If there are any missing values,
+remove those rows. The processing steps are documented below.
 
-### (a) What are the most important features?
+### Part 1b. Most important features
 
-### (i) Compare and contrast the top features as determined by:
+Top features compared across: statistical significance in linear regression, best subsets, step-wise approaches (and/or Recursive Feature Elimination), Lasso, and Elastic Net. Regularization paths are fitted and visualized for Lasso, Elastic Net (at two separate alphas) and Ridge.
 
-1- Statistical significance in Linear Regression.
-2- Best Subsets.
-3- Step-wise approaches (and/or Recursive Feature Elimination).
-4- Lasso.
-5- Elastic Net.
+### Part 1c. Best linear method for prediction
 
-### (ii) Fit and visualize regularization paths for the following methods:
+The data is randomly split into 60% training, 20% validation and 20% test sets. Models are fit on the training data, tuning parameters are chosen by minimizing the prediction error on the validation set, and the final prediction error is reported on the test set. This is repeated 10 times and the results are averaged. The average test MSE is compared for Least Squares, Ridge, Best Subsets, step-wise approaches, Lasso and Elastic Net.
 
-1- Lasso
-2- Elastic Net (at two separate alpha's).
-3- Ridge.
+### 2. Empirical Demonstrations of Regression Properties
 
-### (iii) Reflect on these results.
+(a) Fitting linear regression with an intercept term is equivalent to (i) fitting it after centering Y and the columns of X, and (ii) fitting it after adding a column of ones to X.
 
-Are the top features different for each method? Why or why not? If there are tuning parameters, how did you determine these? Do different tuning
-parameters yield different important features? Are there any features consistently selected
-by all methods? What are the most important features and how did you determine this?
-Explain and expand on your responses.
+(b) The least squares solution has zero training error when p > n.
 
-
-
-### (b) Which linear method is best for prediction? 
-
-For this part of the problem, you will need to randomly split the data into 60% training, 20% validation and 20% test sets. If methods have any
-tuning parameters, you should fit models on the training data, choose the tuning parameters by
-minimizing the prediction error on the validation set, and then report the final prediction error
-on the test set. Repeat this procedure 10 times and average the results.
-
-### (i) Compare the average prediction MSE on the test set for the following methods:
-
-1-Least Squares.
-2- Ridge Regression.
-3- Best Subsets.
-4- Step-wise approaches (and/or Recursive Feature Elimination).
-5- Lasso.
-6- Elastic Net.
-
-### (ii) Visualize the results of your comparisons. 
-
-You can choose to only show the results with the best tuning parameter values.
-
-### (iii) Reflection. 
-
-Which types of methods give the best prediction error? Why do these methods
-perform well? Do any methods seem to overfit to the training set? If so, why? Do all the
-methods that give similar predictions choose the same subset of variables? Which is the
-overall best method for prediction on this dataset? Explain and expand on your responses.
-
-### 2. Empirical Demonstrations of Regression Properties. 
-
-For these problems, you can use the data mentioned above or you may need to design your own linear regression simulation.
-
-### (a) Empirically demonstrate that fitting linear regression with an intercept term is equivalent to (i)fitting linear regression when centering Y and centering the columns of X, and (ii) fitting linear regression when adding a column of ones to X.
-
-
-### (b) Empirically demonstrate that the least squares solution has zero training error when p > n.
-
-### (c) Empirically demonstrate the MSE Existence Theorem. 
-
-Recall that the MSE Existence Theorem states that there exists a value of lamda for which MSE(Xbetahat^Ridge(lamda) < MSE(XBetahat^LS).
-
+(c) The MSE Existence Theorem: there exists a value of lambda for which MSE(X betahat^Ridge(lambda)) < MSE(X betahat^LS).
 
 \newpage
 
@@ -358,7 +307,7 @@ cat("Here are the MOST IMPORTANT FEATURES for different Methods/ parameters:", "
 "and regularization.","\n",
 "Selection of the model, number of features, and tuning parameters depend on the goal of the study", "\n",
 "and requires some background knowledge.","\n",
-"For this homework, I picked the parameters to compare for different distances of parameters.", "\n", 
+"Here, I picked the parameters to compare for different distances of parameters.", "\n", 
 "For example in elastic net, I put alpha=0.5, bacecause I wanted to be neither close ", "\n", 
 "to Ridge nor Lasso, and compared two LAMDA values to see how much the increase affect the changes" ,"\n",
 "Hit, Walks, and Years are 3 features that are most frequenltly selected.", "\n",

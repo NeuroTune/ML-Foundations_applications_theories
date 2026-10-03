@@ -27,7 +27,7 @@ to see that "k-NN" is nothing more than *distance → sort → vote/average*.
 
 ### The math behind it (hand-written)
 
-The prerequisite foundations for the course — here, checking the **convexity** of the common loss
+The prerequisite foundations — here, checking the **convexity** of the common loss
 functions (hinge, logistic) that everything later optimizes:
 
 ![Convexity of loss functions](theory/convexity-of-losses.jpg)

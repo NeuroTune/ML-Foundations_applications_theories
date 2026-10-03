@@ -11,12 +11,9 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Question 1
+## k-NN from scratch
 
-Write a function (from scratch!) to perform K-Nearest Neighbors classication (two-classes only) and
-K-Nearest Neighbors regression. Demonstrate your function by applying it to real or simulated data
-sets and comparing results to built-in functions in R or Python. How do results change as you use
-different values of K?
+K-Nearest Neighbors classification (two classes) and regression written from scratch, applied to simulated data and compared with built-in functions in R, for different values of K.
 
 ```{r q1, echo=TRUE, fig.width = 6, fig.height = 3.2}
 library(kknn)

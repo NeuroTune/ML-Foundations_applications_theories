@@ -1,6 +1,6 @@
-# Course notes
+# Notes
 
-My hand-written notes for the course — the running record of working through the material.
+My hand-written notes — the running record of working through the material.
 Where the topic folders show *applied* implementations, these are the *conceptual* backbone:
 derivations, geometry, and the intuition behind each method, color-coded as I worked.
 

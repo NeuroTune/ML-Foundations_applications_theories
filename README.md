@@ -10,7 +10,7 @@ The pattern throughout is **math → code → result**.
 **Code**  `.Rmd` (R Markdown) for the R topics, `.ipynb` (Jupyter) for
   the Python topics.
 
-**[Course notes](notes/)** a downloadable PDF — 57 pages hand-written notes across the whole course (derivations, geometry, explanations).
+**[Notes](notes/)** hand-written notes (derivations, geometry, explanations).
 
 
 ### Contents
